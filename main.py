@@ -3,11 +3,15 @@ import numpy as np
 import pyautogui
 import pydirectinput
 import time
+import random
 from collections import defaultdict
 
 # Configuration - Coordinates: Top-left (1652, 188) to Bottom-right (1856, 390)
 PATTERN_REGION = (1652, 188, 204, 202)  # (x, y, width, height)
 CHECKMARK_REGION = (1785, 191, 63, 65)  # (x, y, width, height)
+REWARDS_SCREEN_REGION = (875, 653, 172, 51)  # Claim button region
+CLAIM_BUTTON_POS = (961, 678)  # Center of Claim button region
+EXIT_BUTTON_POS = (956, 822)  # Center of Exit button
 
 # Keybinds
 KEYBINDS = {
@@ -60,6 +64,13 @@ CHECKMARK_WHITE = {
 }
 WHITE_THRESHOLD = 50
 
+# Rewards screen detection (green Claim button)
+REWARDS_GREEN = {
+    'lower': np.array([40, 100, 100]),
+    'upper': np.array([80, 255, 255])
+}
+REWARDS_THRESHOLD = 500  # Large green button
+
 
 def capture_pattern():
     """Capture the pattern region from screen"""
@@ -86,11 +97,76 @@ def wait_for_checkmark_cycle():
     """Wait for checkmark to appear then disappear"""
     # Wait for checkmark to appear (pattern completed)
     while not is_checkmark_present():
+        if is_rewards_screen():
+            return False  # Signal that rewards screen appeared
         time.sleep(0.05)
     
     # Wait for checkmark to disappear (new pattern ready)
     while is_checkmark_present():
+        if is_rewards_screen():
+            return False  # Signal that rewards screen appeared
         time.sleep(0.05)
+    
+    return True  # Normal cycle completed
+
+
+def is_rewards_screen():
+    screenshot = pyautogui.screenshot(region=REWARDS_SCREEN_REGION)
+    img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    mask_green = cv2.inRange(hsv, REWARDS_GREEN['lower'], REWARDS_GREEN['upper'])
+    green_pixels = cv2.countNonZero(mask_green)
+    return green_pixels > REWARDS_THRESHOLD
+
+
+def move_and_click(x, y, wiggle=True):
+    """Move to position with optional wiggle, then click"""
+    # Move to target
+    pydirectinput.moveTo(x, y)
+    time.sleep(0.3)
+    
+    # Wiggle left-right to trigger hover detection
+    if wiggle:
+        pydirectinput.moveRel(-5, 0)  # Move left 5px
+        time.sleep(0.1)
+        pydirectinput.moveRel(10, 0)  # Move right 10px
+        time.sleep(0.1)
+        pydirectinput.moveRel(-5, 0)  # Back to center
+        time.sleep(0.2)
+    
+    # Click
+    pydirectinput.click()
+    time.sleep(0.2)
+
+def randomize_cursor():
+    """Move cursor to random position on screen"""
+    screen_width, screen_height = pyautogui.size()
+    rand_x = random.randint(100, screen_width - 100)
+    rand_y = random.randint(100, screen_height - 100)
+    pydirectinput.moveTo(rand_x, rand_y)
+
+def claim_rewards():
+    print("\n" + "="*50)
+    print("REWARDS SCREEN DETECTED!")
+    print("Waiting 1 second...")
+    time.sleep(1)
+    print("Claiming rewards...")
+    
+    move_and_click(CLAIM_BUTTON_POS[0], CLAIM_BUTTON_POS[1], wiggle=False)
+    
+    time.sleep(2)
+    print("✓ Rewards claimed!")
+    print("Clicking Exit...")
+    
+    move_and_click(EXIT_BUTTON_POS[0], EXIT_BUTTON_POS[1], wiggle=True)
+    
+    time.sleep(0.5)
+    print("✓ Exit clicked!")
+    
+    # Randomize cursor position
+    randomize_cursor()
+    print("✓ Cursor randomized!")
+    print("="*50)
 
 
 def detect_elements(img):
@@ -170,7 +246,7 @@ def press_keys(detected_elements):
     
     for key in keys_to_press:
         pydirectinput.press(key)
-        time.sleep(0.05)  # Small delay between keypresses
+        time.sleep(0.02)  # Small delay between keypresses
 
 
 def test_detection():
@@ -189,10 +265,10 @@ def test_detection():
         print(f"{element}: {status}")
 
 
-def run_automation(duration_seconds=60):
+def run_automation(duration_seconds=3600):
     """Run the automation loop"""
     print(f"Starting automation in 5 seconds... Alt-tab to game!")
-    print(f"Will run for {duration_seconds} seconds")
+    print("Will run until rewards screen appears")
     print("Press Ctrl+C to stop early")
     time.sleep(5)
     
@@ -200,7 +276,12 @@ def run_automation(duration_seconds=60):
     count = 0
     
     try:
-        while time.time() - start_time < duration_seconds:
+        while True:
+            # Check for rewards screen
+            if is_rewards_screen():
+                claim_rewards()
+                break
+            
             img = capture_pattern()
             detected = detect_elements(img)
             press_keys(detected)
@@ -208,29 +289,23 @@ def run_automation(duration_seconds=60):
             count += 1
             print(f"Pattern {count} completed - waiting for next...")
             
-            # Wait for checkmark cycle instead of fixed timing
-            wait_for_checkmark_cycle()
+            # Wait for checkmark cycle, break if rewards appear
+            if not wait_for_checkmark_cycle():
+                claim_rewards()
+                break
     
     except KeyboardInterrupt:
         print("\nStopped by user")
     
-    print(f"\nCompleted {count} patterns in {time.time() - start_time:.1f} seconds")
+    elapsed = time.time() - start_time
+    print(f"\nCompleted {count} patterns in {elapsed:.1f} seconds")
+    print(f"Average: {elapsed/count:.2f}s per pattern" if count > 0 else "")
 
 
 if __name__ == "__main__":
     print("=== Roblox Pattern Automation ===")
     print("Color ranges calibrated from Masks folder")
-    print("\nPress 1 to start automation (or any other key to exit)")
+    print("\nPress Enter to start automation (or Ctrl+C to exit)")
     
-    choice = input("\nChoice: ")
-    
-    if choice == "1":
-        duration = input("Run for how many seconds? (default 60): ")
-        try:
-            duration = int(duration) if duration else 60
-        except:
-            duration = 60
-        
-        run_automation(duration)
-    else:
-        print("Exiting...")
+    input()
+    run_automation()
