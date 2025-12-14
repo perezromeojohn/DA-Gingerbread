@@ -123,7 +123,7 @@ def move_and_click(x, y, wiggle=True):
     """Move to position with optional wiggle, then click"""
     # Move to target
     pydirectinput.moveTo(x, y)
-    time.sleep(0.3)
+    time.sleep(0.2)
     
     # Wiggle left-right to trigger hover detection
     if wiggle:
@@ -136,7 +136,7 @@ def move_and_click(x, y, wiggle=True):
     
     # Click
     pydirectinput.click()
-    time.sleep(0.2)
+    time.sleep(0.1)
 
 def randomize_cursor():
     """Move cursor to random position on screen"""
@@ -152,9 +152,9 @@ def claim_rewards():
     time.sleep(1)
     print("Claiming rewards...")
     
-    move_and_click(CLAIM_BUTTON_POS[0], CLAIM_BUTTON_POS[1], wiggle=False)
+    move_and_click(CLAIM_BUTTON_POS[0], CLAIM_BUTTON_POS[1], wiggle=True)
     
-    time.sleep(2)
+    time.sleep(1)
     print("✓ Rewards claimed!")
     print("Clicking Exit...")
     
@@ -265,7 +265,7 @@ def test_detection():
         print(f"{element}: {status}")
 
 
-def run_automation(duration_seconds=3600):
+def run_automation():
     """Run the automation loop"""
     print(f"Starting automation in 5 seconds... Alt-tab to game!")
     print("Will run until rewards screen appears")
