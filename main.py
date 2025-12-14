@@ -7,6 +7,7 @@ from collections import defaultdict
 
 # Configuration - Coordinates: Top-left (1652, 188) to Bottom-right (1856, 390)
 PATTERN_REGION = (1652, 188, 204, 202)  # (x, y, width, height)
+CHECKMARK_REGION = (1785, 191, 63, 65)  # (x, y, width, height)
 
 # Keybinds
 KEYBINDS = {
@@ -52,12 +53,44 @@ THRESHOLDS = {
     'eyes': 60             # Lowered slightly to catch smaller eye spots
 }
 
+# Checkmark detection
+CHECKMARK_WHITE = {
+    'lower': np.array([0, 0, 200]),
+    'upper': np.array([180, 30, 255])
+}
+WHITE_THRESHOLD = 50
+
 
 def capture_pattern():
     """Capture the pattern region from screen"""
     screenshot = pyautogui.screenshot(region=PATTERN_REGION)
     img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
     return img
+
+
+def capture_checkmark():
+    screenshot = pyautogui.screenshot(region=CHECKMARK_REGION)
+    img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    return img
+
+
+def is_checkmark_present():
+    img = capture_checkmark()
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    mask_white = cv2.inRange(hsv, CHECKMARK_WHITE['lower'], CHECKMARK_WHITE['upper'])
+    white_pixels = cv2.countNonZero(mask_white)
+    return white_pixels > WHITE_THRESHOLD
+
+
+def wait_for_checkmark_cycle():
+    """Wait for checkmark to appear then disappear"""
+    # Wait for checkmark to appear (pattern completed)
+    while not is_checkmark_present():
+        time.sleep(0.05)
+    
+    # Wait for checkmark to disappear (new pattern ready)
+    while is_checkmark_present():
+        time.sleep(0.05)
 
 
 def detect_elements(img):
@@ -173,9 +206,10 @@ def run_automation(duration_seconds=60):
             press_keys(detected)
             
             count += 1
-            print(f"Pattern {count} completed")
+            print(f"Pattern {count} completed - waiting for next...")
             
-            time.sleep(1.5)  # Wait 1.5s before next pattern
+            # Wait for checkmark cycle instead of fixed timing
+            wait_for_checkmark_cycle()
     
     except KeyboardInterrupt:
         print("\nStopped by user")
