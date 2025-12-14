@@ -129,10 +129,6 @@ def move_and_click(x, y, wiggle=True):
     if wiggle:
         pydirectinput.moveRel(-5, 0)  # Move left 5px
         time.sleep(0.1)
-        pydirectinput.moveRel(10, 0)  # Move right 10px
-        time.sleep(0.1)
-        pydirectinput.moveRel(-5, 0)  # Back to center
-        time.sleep(0.2)
     
     # Click
     pydirectinput.click()
